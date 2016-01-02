@@ -1,0 +1,32 @@
+Testsuite: test.ScenarioTest
+Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 12,557 sec
+------------- Standard Output ---------------
+00_login_test.txt
+SERVER > alice.vienna.at offline
+bill.at offline
+nora.us offline
+patrick.at offline
+
+CLIENT alice.vienna.at > Successfully logged in.
+CLIENT patrick.at > Successfully logged in.
+SERVER > alice.vienna.at online
+bill.at offline
+nora.us offline
+patrick.at online
+
+CLIENT alice.vienna.at > patrick.at: Hallo jemand da?
+CLIENT patrick.at > alice.vienna.at: Hallo Patrick!
+CLIENT patrick.at > alice.vienna.at: Hallo Patrick!
+CLIENT patrick.at > Wrong username or user not reachable.
+CLIENT patrick.at > localhost:19067
+CLIENT alice.vienna.at > patrick.at: Alice? Bist du da?!
+CLIENT patrick.at > alice.vienna.at replied with !ack.
+SERVER > Shutting down chatserver
+CLIENT patrick.at > Exiting Client patrick.at
+################################################################################
+01_chat_test.txt
+################################################################################
+------------- ---------------- ---------------
+
+Testcase: 00_login_test took 12,523 sec
+Testcase: 01_chat_test took 0,001 sec

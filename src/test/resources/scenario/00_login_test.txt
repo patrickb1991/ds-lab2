@@ -1,0 +1,25 @@
+*	Chatserver	chatserver
+*	Client		alice.vienna.at
+*	Client		patrick.at
+
+
+chatserver:			!users
+
+
+alice.vienna.at:	!login alice.vienna.at 12345
+patrick.at:			!login patrick.at correcthorse
+
+chatserver:			!users
+
+patrick.at:			!send Hallo jemand da?
+alice.vienna.at:	!send Hallo Patrick!
+
+patrick.at:			!lastMsg
+
+patrick.at:			!msg alice.vienna.at Alice wie gehts dir?
+alice.vienna.at:	!register localhost:19067
+patrick.at:			!lookup alice.vienna.at
+patrick.at:			!msg alice.vienna.at Alice? Bist du da?! 
+
+chatserver:			!exit
+patrick.at:			!exit
