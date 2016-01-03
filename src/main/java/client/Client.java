@@ -208,6 +208,8 @@ public class Client implements IClientCli, Runnable {
 	public String exit() throws IOException {
 		this.write("Exiting Client " + this.componentName);
 		
+		tcpClient.send("!exit");
+		
 		
 		udpServer.exit();
 		tcpClient.exit();
@@ -334,7 +336,7 @@ public class Client implements IClientCli, Runnable {
 		public void exit() {
 			try {
 				outToServer.close();
-				clientSocket.close();
+				clientSocket.close();				
 			} catch (IOException e) {
 
 			}

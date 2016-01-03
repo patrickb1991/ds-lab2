@@ -377,9 +377,9 @@ class TCPServer implements Runnable {
                     	if (command.equals("!exit")) {
                     		loggedInUsers.remove(username);
                     		br.close();
-                            pw.close();
                             clientsocket.close();
                             socList.remove(incoming);
+                            continue;
                     	}
                     	
                     	this.sendToClient("Invalid command!");
