@@ -2,6 +2,7 @@ package client;
 
 import java.io.BufferedReader;
 import java.io.DataOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -12,13 +13,23 @@ import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
+import java.security.InvalidKeyException;
+import java.security.Key;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+
+import javax.crypto.Mac;
+
+import org.bouncycastle.util.encoders.Base64;
 
 import util.Config;
+import util.Keys;
 
 public class Client implements IClientCli, Runnable {
 
 	private String componentName;
 	private Config config;
+	private Mac hMac;
 	private InputStream userRequestStream;
 	private PrintStream userResponseStream;
 
@@ -46,7 +57,18 @@ public class Client implements IClientCli, Runnable {
 		this.componentName = componentName;
 		this.config = config;
 		this.userRequestStream = userRequestStream;
-		this.userResponseStream = userResponseStream;
+		this.userResponseStream = userResponseStream;	
+		try {
+			Key secretKey = Keys.readSecretKey(new File("keys/hmac.key"));
+			hMac = Mac.getInstance(secretKey.getAlgorithm());
+			hMac.init(secretKey);
+		} catch (NoSuchAlgorithmException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		} catch (InvalidKeyException e) {
+			e.printStackTrace();
+		}
 
 		// TODO
 	}
@@ -347,88 +369,102 @@ public class Client implements IClientCli, Runnable {
 
 
 	class TCPPrivateMessageListener implements Runnable {
-		private ServerSocket ss = null;
-		private Socket incoming = null;
-		private int port;
 
-		public TCPPrivateMessageListener(int port) {
-			this.port = port;
-		}
+		    private ServerSocket ss = null;
+		    private Socket incoming = null;
+		    private int port;
 
-		public void run() {
+		    public TCPPrivateMessageListener(int port) {
+		    	this.port = port;
+		    }
+		    
+		    public void run() {
 
-			try {
-				ss = new ServerSocket(port);
+		        try {
+		            ss = new ServerSocket(port);
 
-				while (true) {
-					incoming = ss.accept();
-					new Thread(new HandleClient(incoming)).start();
-				}
+		            while (true) {
+		                incoming = ss.accept();
+		                new Thread(new HandleClient(incoming)).start();
+		            }
 
-			} catch (IOException e) {
-				e.printStackTrace();
-			} finally {
-				try {
-					ss.close();
-				} catch (IOException e) {
-					e.printStackTrace();
-				}
-			}
+		        } catch (IOException e) {
+		            e.printStackTrace();
+		        } finally {
+		            try {
+		                ss.close();
+		            } catch (IOException e) {
+		                e.printStackTrace();
+		            }
+		        }
 
-		}
+		    }
 
-		class HandleClient implements Runnable {
+		    class HandleClient implements Runnable {
 
-			InputStream is = null;
-			DataOutputStream outToClient = null;
-			InputStreamReader isr = null;
-			BufferedReader br = null;
+		        InputStream is = null;
+		        DataOutputStream outToClient = null;
+		        InputStreamReader isr = null;
+		        BufferedReader br = null;
 
-			Socket clientsocket = null;
+		        Socket clientsocket = null;
 
-			public HandleClient(Socket socket) throws IOException {
-				this.clientsocket = socket;
-				outToClient = new DataOutputStream(clientsocket.getOutputStream());
-			}
+		        public HandleClient(Socket socket) throws IOException {
+		            this.clientsocket = socket;
+		            outToClient = new DataOutputStream(clientsocket.getOutputStream());
+		        }
 
-			@Override
-			public void run() {
-				try {
-					is = clientsocket.getInputStream();
-					isr = new InputStreamReader(is);
-					br = new BufferedReader(isr);
+		        @Override
+		        public void run() {
+		            try {
+		                is = clientsocket.getInputStream();
+		                isr = new InputStreamReader(is);
+		                br = new BufferedReader(isr);
 
-					String message = br.readLine().trim();
+		                String message = br.readLine().trim();
+		                String[] parts = message.split(" !msg ");
+		                byte[] hashReceived = Base64.decode(parts[0]);
+		                hMac.update(parts[1].getBytes());
+		                byte[] hashComputed = hMac.doFinal();
+		                boolean validHash = MessageDigest.isEqual(hashReceived, hashComputed);
+		                if(validHash){
+		                	Client.this.write("Valid Hash");
+		                	this.sendToClient(parts[0] + " !ack " + parts[1]);
+		                }else{
+		                	Client.this.write("Invalid Hash");
+		                	this.sendToClient(parts[0] + " !tampered " + parts[1]);
+		                }
+		                
+		                Client.this.write(parts[1]);
+		                
+		                
+		                
+		                br.close();
+	                    clientsocket.close();
+	                    
+		            } catch (IOException e) {
+		            	e.printStackTrace();
+		            } finally {
 
-					Client.this.write(message);
+		                try {
+		                    br.close();
+		                    clientsocket.close();
 
-					this.sendToClient(username + " replied with !ack.");
-
-					br.close();
-					clientsocket.close();
-
-				} catch (IOException e) {
-					e.printStackTrace();
-				} finally {
-
-					try {
-						br.close();
-						clientsocket.close();
-
-					} catch (IOException e) {
-						e.printStackTrace();
-					}
-				}
-			}
-
-			private void sendToClient(String msg) throws IOException {
-				outToClient.writeBytes(msg+"\n");
-			}
-		}
+		                } catch (IOException e) {
+		                	e.printStackTrace();
+		                }
+		            }
+		        }
+		        
+		        private void sendToClient(String msg) throws IOException {
+		        	outToClient.writeBytes(msg+"\n");
+		        }
+		    }
 	}
 
 
 	class TCPPrivateMessageSender implements Runnable {
+		
 		private Socket clientSocket;
 		private DataOutputStream outToServer;
 		private BufferedReader inFromServer;
@@ -451,13 +487,30 @@ public class Client implements IClientCli, Runnable {
 				clientSocket = new Socket(ip, port);
 				outToServer = new DataOutputStream(clientSocket.getOutputStream());
 				inFromServer = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-
-				this.send(Client.this.username + ": " + pm);
-
-
+				
+				hMac.update(pm.getBytes());
+				byte[] hash = hMac.doFinal();
+				byte[] base64hash = Base64.encode(hash);
+				String msg = new String(base64hash) + " !msg " + pm;
+				this.send(msg);
+								
 				String received = inFromServer.readLine();
-				Client.this.write(received);
-
+				String[] parts;
+				if(received.contains("!tampered")){
+					parts = received.split(" !tampered ");
+					Client.this.write("The original message has been tampered with.");
+				}else{
+					parts = received.split(" !ack ");
+					byte[] hashReceived = Base64.decode(parts[0]);
+	                hMac.update(parts[1].getBytes());
+	                byte[] hashComputed = hMac.doFinal();
+	                boolean validHash = MessageDigest.isEqual(hashReceived, hashComputed);
+	                if(!validHash){
+	                	Client.this.write("The return message has been tampered with.");
+	                }
+	                Client.this.write(parts[1]);
+				}
+				
 				clientSocket.close();
 				outToServer.close();
 				inFromServer.close();
