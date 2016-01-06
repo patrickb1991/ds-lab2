@@ -62,21 +62,6 @@ public class Nameserver implements INameserver, INameserverCli, Runnable {
 		rootServerID = config.getString("root_id");
 		sub_servers = new HashMap<String, INameserver>();
 		users = new HashMap<String, String>();
-		
-		try {
-			this.registerUser("pat", "124234.25.235.234.234");
-			this.registerUser("pat", "124234.25.235.234.234");
-			this.registerUser("patt", "124234.25.235.234.234");
-		} catch (RemoteException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (AlreadyRegisteredException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (InvalidDomainException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
 	}
 
 	@Override
