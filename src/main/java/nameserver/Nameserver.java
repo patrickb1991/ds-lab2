@@ -27,7 +27,6 @@ import util.Config;
 public class Nameserver implements INameserver, INameserverCli, Runnable {
 
 	private static final long serialVersionUID = 1L;
-	private String componentName;
 	private Config config;
 	private InputStream userRequestStream;
 	private PrintStream userResponseStream;
@@ -54,7 +53,6 @@ public class Nameserver implements INameserver, INameserverCli, Runnable {
 	 */
 	public Nameserver(String componentName, Config config,
 			InputStream userRequestStream, PrintStream userResponseStream) {
-		this.componentName = componentName;
 		this.config = config;
 		this.userRequestStream = userRequestStream;
 		this.userResponseStream = userResponseStream;
@@ -73,19 +71,18 @@ public class Nameserver implements INameserver, INameserverCli, Runnable {
 		}
 		
 		if (domain == null) {
-			//this.write("ROOTSERVER");
+			this.write("Starting rootserver...");
 			try {
 				rmiReg = LocateRegistry.createRegistry(config.getInt("registry.port"));
 				
 				INameserver stub_ns = (INameserver) UnicastRemoteObject.exportObject(this, 0);
 				rmiReg.rebind(rootServerID, stub_ns);
-				 this.write("RootServer bound");
+				
 			} catch (RemoteException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
 		} else {
-			//this.write("NAMESERVER " + domain);
+			this.write("Starting nameserver for domain '" + domain + "'...");
 			try {
 				rmiReg = LocateRegistry.getRegistry(config.getString("registry.host"), config.getInt("registry.port"));
 				INameserver root = (INameserver) rmiReg.lookup(rootServerID);
@@ -95,7 +92,6 @@ public class Nameserver implements INameserver, INameserverCli, Runnable {
 				root.registerNameserver(domain + ".", stub_ns, stub_ns);
 				
 			} catch (RemoteException | NotBoundException | AlreadyRegisteredException | InvalidDomainException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
 			
@@ -120,7 +116,6 @@ public class Nameserver implements INameserver, INameserverCli, Runnable {
 						}
 						
 						if (sentence.equals("!exit")) {
-							this.write("Shutting down " + this.componentName);
 							this.exit();
 							break;
 						}
@@ -128,7 +123,7 @@ public class Nameserver implements INameserver, INameserverCli, Runnable {
 						this.write("Unknown command!");
 				}
 				} catch (IOException e) {
-					//e.printStackTrace();
+					e.printStackTrace();
 				}
 		 
 	}
@@ -161,55 +156,69 @@ public class Nameserver implements INameserver, INameserverCli, Runnable {
 	public String exit() throws IOException {
 		UnicastRemoteObject.unexportObject(this, true);
 		try {
-			rmiReg.unbind(rootServerID);
+			//Rootserver should clean registry.
+			if (domain == null) {
+				rmiReg.unbind(rootServerID);
+				UnicastRemoteObject.unexportObject(rmiReg, true);
+			}
 		} catch (NotBoundException e) {
 			e.printStackTrace();
 		}
-		UnicastRemoteObject.unexportObject(rmiReg, true);
 		
-		return "Server exiting...";
-	}
-
-	/**
-	 * @param args
-	 *            the first argument is the name of the {@link Nameserver}
-	 *            component
-	 */
-	public static void main(String[] args) {
-		Nameserver nameserver = new Nameserver(args[0], new Config(args[0]),
-				System.in, System.out);
-		nameserver.run();
+		return "Nameserver exiting...";
 	}
 	
 	private void write(String msg) {
-		if (domain != null) userResponseStream.println("Nameserver " + domain + ": "  + msg);
-		if (domain == null) userResponseStream.println("Rootserver: "  + msg);
+		if (domain != null) userResponseStream.println("NAMESERVER " + domain + " > "  + msg);
+		if (domain == null) userResponseStream.println("ROOTSERVER > "  + msg);
 	}
 
 	@Override
 	public void registerUser(String username, String address)
 			throws RemoteException, AlreadyRegisteredException,
 			InvalidDomainException {
-		if (users.containsKey(username)) users.remove(username);
 		
-		users.put(username, address);
 		
+		String[] zones = username.split("\\.");
+		
+		String top_domain = zones[zones.length-1];
+		
+		if (zones.length == 0) {
+			throw new InvalidDomainException("Invalid Domain Exception");
+		} else if (zones.length == 1) {
+			//Register user on this server
+			if (users.containsKey(username)) users.remove(username);
+			users.put(zones[0], address);
+            this.write("Registered username '"+ top_domain + "' with address: " + address);
+		} else if (zones.length > 1) {
+			if (!sub_servers.containsKey(top_domain)) {
+				throw new InvalidDomainException("Error when registering user '" + username + "'. There does not exist a name server for " + top_domain + ".");
+			} else {
+				String subdomain = "";
+				for (int i = 0; i <= zones.length-2; i++) subdomain += zones[i]+".";
+				
+				this.write("Registration of username '" + username + "' Forwarding request to sub-nameserver.");
+				sub_servers.get(top_domain).registerUser(subdomain, address);
+			}
+		}
 	}
 
 	@Override
 	public INameserverForChatserver getNameserver(String zone)
-			throws RemoteException, InvalidDomainException {
-			if (!sub_servers.containsKey(zone)) {
-				throw new InvalidDomainException("Zone is not registered on this nameserver.");
-			} else {
-				return sub_servers.get(zone);
-			}
+		throws RemoteException, InvalidDomainException {
+		this.write("Nameserver request for zone '" + zone + "'");
+		if (!sub_servers.containsKey(zone)) {
+			throw new InvalidDomainException("Requested zone " + zone + " is not registered on this nameserver.");
+		} else {
+			return sub_servers.get(zone);
+		}
 	}
 
 	@Override
 	public String lookup(String username) throws RemoteException, UnknownUsernameException {
+		this.write("Username lookup request for '" + username + "'");
 		if (!users.containsKey(username)) { 
-			throw new UnknownUsernameException("Lookup for " + username + " failed. No such user registered in my zone.");
+			throw new UnknownUsernameException("Lookup for '" + username + "' failed. No such user registered on this nameserver.");
 		} else {
 			return users.get(username);
 		}
@@ -231,22 +240,31 @@ public class Nameserver implements INameserver, INameserverCli, Runnable {
 		} else if (zones.length == 1) {
 			//Register zone on this server
 			if(sub_servers.containsKey(top_domain)) throw new AlreadyRegisteredException("Domain " + top_domain + " is already registered.");
-
 			sub_servers.put(top_domain, nameserver);
-            this.write("Registering "+ top_domain);
+            this.write("Registered domain '" + top_domain + "'.");
 		} else if (zones.length > 1) {
+			//Register zone on sub-server
 			if (!sub_servers.containsKey(top_domain)) {
-				throw new InvalidDomainException("Error when registering " + domain + ". There does not exist a name server for " + top_domain + " yet.");
+				throw new InvalidDomainException("Error when registering '" + domain + "'. There does not exist a name server for " + top_domain + " yet.");
 			} else {
 				String subdomain = "";
-				for (int i = 0; i <= zones.length-2; i++) subdomain += zones[i]+".";
+				for (int i = 0; i <= zones.length-2; i++) subdomain += zones[i] + ".";
 				
-				this.write("Subdomain register " + subdomain);
+				this.write("Registration of domain '" + subdomain + "'. Forwarding request to sub-nameserver.");
 				sub_servers.get(top_domain).registerNameserver(subdomain, nameserver, nameserver);
 			}
-				
 		}
-		
+	}
+	
+	/**
+	 * @param args
+	 *            the first argument is the name of the {@link Nameserver}
+	 *            component
+	 */
+	public static void main(String[] args) {
+		Nameserver nameserver = new Nameserver(args[0], new Config(args[0]),
+				System.in, System.out);
+		nameserver.run();
 	}
 
 }

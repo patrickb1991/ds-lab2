@@ -1,13 +1,38 @@
 *	Nameserver	ns-root
 *	Nameserver	ns-at
+*	Nameserver	ns-de
 *	Nameserver	ns-vienna-at
-*	Nameserver	ns-krems-at
+*	Chatserver	chatserver
+*	Client		patrick.at
+*	Client		alice.vienna.at
 
 
 ns-root: !nameservers
 ns-at: !nameservers
-ns-krems-at: !addresses
+ns-de: !nameservers
+ns-vienna-at: !nameservers
 
-ns-root: !exit
+
+
+patrick.at:	!login patrick.at correcthorse
+alice.vienna.at:	!login alice.vienna.at 12345
+
+ns-at: !addresses
+patrick.at: !register localhost:19067
+ns-at: !addresses
+
+
+
+alice.vienna.at:	!lookup patrick.at
+
+alice.vienna.at:	!lookup patrick.att
+alice.vienna.at:	!lookup ...3434
+alice.vienna.at:	!lookup #
+alice.vienna.at:	!lookup  
+
+patrick.at: !exit
+chatserver: !exit
+
 ns-at: !exit
-
+ns-vienna-at: !exit
+ns-root: !exit
