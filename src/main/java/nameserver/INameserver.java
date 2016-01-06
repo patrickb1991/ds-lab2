@@ -1,5 +1,6 @@
 package nameserver;
 
+import java.io.Serializable;
 import java.rmi.Remote;
 import java.rmi.RemoteException;
 
@@ -11,7 +12,7 @@ import nameserver.exceptions.InvalidDomainException;
  * later be used in Lab 2. Hence, you do not have to implement it for the
  * first submission.
  */
-public interface INameserver extends INameserverForChatserver, Remote {
+public interface INameserver extends INameserverForChatserver, Remote, Serializable {
 
 	public void registerNameserver(String domain, INameserver nameserver,
 			INameserverForChatserver nameserverForChatserver)

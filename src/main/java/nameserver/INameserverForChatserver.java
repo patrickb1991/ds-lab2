@@ -5,6 +5,7 @@ import java.rmi.RemoteException;
 
 import nameserver.exceptions.AlreadyRegisteredException;
 import nameserver.exceptions.InvalidDomainException;
+import nameserver.exceptions.UnknownUsernameException;
 
 /**
  * Please note that this interface is not needed for Lab 1, but will later be
@@ -18,8 +19,8 @@ public interface INameserverForChatserver extends Remote {
 			InvalidDomainException;
 
 	public INameserverForChatserver getNameserver(String zone)
-			throws RemoteException;
+			throws RemoteException, InvalidDomainException;
 
-	public String lookup(String username) throws RemoteException;
+	public String lookup(String username) throws RemoteException, UnknownUsernameException;
 
 }
